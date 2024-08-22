@@ -108,6 +108,7 @@ Update the values of currentVariables with your latest state and include them in
         },
         body: JSON.stringify({
           model: this.model,
+          temperature: 1.3,
           messages: this.messages,
           tools: this.tools,
           tool_choice: 'auto'
@@ -169,7 +170,7 @@ export async function generateIdea(): Promise<string> {
   const prompt = `You're a smart idea generator.
     You must generate simple ideas for projects, like a website, app, platform, service, gadget, etc.
     Simple as in they take little time to do, don't suggest rewritting Google.
-    The ideas should be simple, short, and silly.
+    The ideas should be simple, short, and silly, really silly, and random too. 
     Use fun things like 'what if you...', 'what about', 'oh, oh! a...', etc.
     Your answers should be in lowercase.`;
   return new Promise((resolve) => {
