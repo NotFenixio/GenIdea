@@ -1,119 +1,190 @@
-export function generateIdea(): string {
-  const ideas = {
-    website: "A website",
-    app: "An app",
-    game: "A game",
-    extension: "A browser extension",
-    tool: "A productivity tool",
-    platform: "An online platform",
-    service: "A web service",
-    gadget: "A tech gadget",
-  };
+console.log('🪄🦕 https://github.com/hackclub/wizard-orpheus')
 
-  const about = {
-    website: [
-      "about pups",
-      "about cats",
-      "that generates images using AI",
-      "for a social media",
-      "for book reviews and recommendations",
-      "showcasing local artists from your city/country",
-      "for organizing community/local events",
-      "that provides educational resources",
-      "for sharing recipes and cooking tips",
-      "focused on mental health and wellness"
-    ],
-    app: [
-      "for meditation and mindfulness",
-      "that gamifies daily chores",
-      "for tracking water intake",
-      "that helps with time management",
-      "for learning a musical instrument",
-      "that connects local volunteers with opportunities",
-      "for collaborative grocery shopping",
-      "that helps reduce digital distractions",
-      "for managing personal finances",
-      "that offers daily challenges and rewards"
-    ],
-    game: [
-      "that teaches coding concepts",
-      "about running a virtual city",
-      "about a virtual garden",
-      "based on historical events",
-      "that improves vocabulary",
-      "centered around solving mysteries",
-      "about solving puzzles",
-      "that explores philosophical concepts",
-      "focusing on teamwork and cooperation",
-      "that simulates space exploration",
-      "set in a post-apocalyptic world",
-      "with a focus on narrative storytelling"
-    ],
-    extension: [
-      "for blocking ads and trackers",
-      "that summarizes long articles",
-      "for managing tabs efficiently",
-      "that provides language translation",
-      "for customizing website appearances",
-      "that tracks time spent on different sites",
-      "for quick note-taking while browsing",
-      "for scheduling social media posts",
-      "that provides accessibility features",
-      "for enhancing privacy and security",
-      "that integrates with productivity tools"
-    ],
-    tool: [
-      "for automating repetitive tasks",
-      "that helps with project management",
-      "for tracking fitness progress",
-      "that offers advanced analytics",
-      "for simplifying code deployment",
-      "that assists with digital design",
-      "for managing team communications",
-      "that aids in learning new skills",
-      "for organizing research data",
-      "that integrates with various APIs"
-    ],
-    platform: [
-      "for connecting freelancers with clients",
-      "that hosts virtual events and meetings",
-      "for managing online courses",
-      "that supports collaborative workspaces",
-      "for sharing and discovering podcasts",
-      "that provides real-time data visualization",
-      "for hosting open-source projects",
-      "that offers community-driven support",
-      "for crowdfunding creative projects",
-      "that helps with remote team management"
-    ],
-    service: [
-      "for real-time data backup",
-      "that provides on-demand technical support",
-      "for personal health monitoring",
-      "that offers customized learning paths",
-      "for managing digital content",
-      "that delivers instant translations",
-      "for virtual customer service",
-      "that helps with event planning",
-      "for managing subscription services",
-      "that provides financial advisory"
-    ],
-    gadget: [
-      "for tracking physical activity",
-      "that integrates with smart home systems",
-      "for enhancing virtual reality experiences",
-      "that offers health monitoring features",
-      "for improving audio quality",
-      "that provides real-time navigation",
-      "for managing digital photography",
-      "that enhances gaming experiences",
-      "for optimizing personal productivity",
-      "that assists with home automation"
-    ]
-  };
+interface Variable {
+  value: any;
+  description: string;
+}
 
-  const keys = Object.keys(ideas) as Array<keyof typeof ideas>;
-  const randomKey = keys[Math.floor(Math.random() * keys.length)];
-  
-  return ideas[randomKey] + " " + about[randomKey][Math.floor(Math.random() * about[randomKey].length)];
+interface Message {
+  role: string;
+  content?: string;
+  tool_calls?: ToolCall[];
+  tool_call_id?: string; // Add this line
+}
+
+interface ToolCall {
+  id: string;
+  function: {
+    name: string;
+    arguments: string;
+  };
+}
+
+interface Tool {
+  type: string;
+  function: {
+    name: string;
+    description: string;
+    parameters: {
+      type: string;
+      properties: {
+        [key: string]: {
+          response: {
+            type: string;
+            description: string;
+          };
+        };
+      };
+      required: string[];
+    };
+  };
+}
+
+class WizardOrpheus {
+  private apiHost: string;
+  private apiKey: string;
+  private prompt: string;
+  private model: string;
+  private variables: { [key: string]: Variable };
+  private messages: Message[];
+  private tools: Tool[];
+  private outputFunctions: { [key: string]: Function };
+
+  constructor(openAiApiKey: string, prompt: string) {
+    if (openAiApiKey && !prompt) {
+      prompt = openAiApiKey;
+      openAiApiKey = '';
+    }
+
+    this.apiHost = 'https://wizard-orpheus.hackclub.dev/api';
+    this.apiKey = openAiApiKey;
+    this.prompt = prompt;
+    this.model = "gpt-4-turbo-preview";
+    this.variables = {};
+    this.messages = [
+      {
+        role: 'system',
+        content: `${this.prompt}
+
+You MUST call a function. Do not reply with a message under any circumstance.`
+      }
+    ];
+    this.tools = [];
+
+    this.outputFunctions = {};
+  }
+
+  variable(name: string, description: string, defaultValue: any): void {
+    this.variables[name] = {
+      value: defaultValue,
+      description
+    };
+  }
+  // @ts-ignore: yes, typescript, it is indeed neccesary
+  createUserAction({ name, parameters, howBotShouldHandle }: { name: string; parameters: string[]; howBotShouldHandle: string }): void {
+    this[name as keyof WizardOrpheus] = (...args: any[]) => {
+      let inputObj: { [key: string]: any } = {};
+
+      args.forEach((arg, i) => {
+        inputObj[parameters[i]] = arg;
+      });
+
+      this.messages.push({
+        role: 'user',
+        content: `The user used the '${name}' action with the following user-provided input: ${JSON.stringify(inputObj)}"
+
+Determine your next action and pick the most appropriate tool to call. You MUST call a tool, and not reply a message.
+
+Update the values of currentVariables with your latest state and include them in your call to the tool. These are the current values of currentVariables: ${JSON.stringify(this.variables)}
+`
+      });
+
+      fetch(`${this.apiHost}/v1/chat/completions`, {
+        method: 'POST',
+        headers: {
+          'Wizard-Orpheus-URL': window.location.href,
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${this.apiKey} `,
+        },
+        body: JSON.stringify({
+          model: this.model,
+          messages: this.messages,
+          tools: this.tools,
+          tool_choice: 'auto'
+        })
+      })
+        .then(resp => resp.json())
+        .then(body => {
+          let botReply = body.choices[0].message;
+          this.messages.push({
+            "role": "assistant",
+            "tool_calls": botReply.tool_calls
+          });
+
+          botReply.tool_calls.forEach((botAction: ToolCall) => {
+            this.messages.push({
+              "role": "tool",
+              "tool_call_id": botAction.id,
+              "content": 'ok'
+            });
+
+            this.outputFunctions[botAction.function.name](JSON.parse(botAction.function.arguments));
+          });
+        });
+    };
+  }
+
+  botAction(type: string, prompt: string, args: { [key: string]: string }, callback: Function): void {
+    args['currentVariables'] = `A JSON list of all currentVariables, with their current values, modified as needed based on the action taken by ChatGPT. In this format: ${JSON.stringify(this.variables)}`;
+
+    let props: { [key: string]: { response: { type: string; description: string } } } = {};
+
+    for (let key in args) {
+      props[key] = {
+        response: {
+          type: 'string',
+          description: args[key]
+        }
+      };
+    }
+
+    this.tools.push({
+      type: 'function',
+      function: {
+        name: type,
+        description: prompt,
+        parameters: {
+          type: 'object',
+          properties: props,
+          required: Object.keys(args)
+        }
+      }
+    });
+
+    this.outputFunctions[type] = callback;
+  }
+}
+
+export async function generateIdea(): Promise<string> {
+  const prompt = `You're a smart idea generator.
+    You must generate simple ideas for projects, like a website, app, platform, service, gadget, etc.
+    Simple as in they take little time to do, don't suggest rewritting Google.
+    The ideas should be simple, short, and silly.
+    Use fun things like 'what if you...', 'what about', 'oh, oh! a...', etc.
+    Your answers should be in lowercase.`;
+  return new Promise((resolve) => {
+    const wizard = new WizardOrpheus("", prompt);
+
+    wizard.createUserAction({
+      name: "generateIdea",
+      parameters: [],
+      howBotShouldHandle: "Generate an idea and send a message back"
+    });
+
+    wizard.botAction("sendMessage", "Send a message back to the user, with the generated idea", { idea: "the generated idea" }, (data: { idea: string }) => {
+      return resolve(data.idea);
+    });
+
+    (wizard as any).generateIdea();
+  });
 }
